@@ -35,6 +35,8 @@ public class Algorithm {
 	private ArrayList<MedicalStaff> nursesQ2;
 	private ArrayList<MedicalStaff> nursesQ3;
 	private ArrayList<MedicalStaff> medicalStaff;
+	int[] assigmentMedicalStaff;
+
 
 
 	public Algorithm(Test currentTest, Inputs inputs, Random rng) {
@@ -58,32 +60,57 @@ public class Algorithm {
 
 		// under the assumption that one vehicle can have more than one route
 		ArrayList<Vehicle> vehicleList= new ArrayList<Vehicle> ();
-
 		for(int i=0;i<inputs.getVehicles().get(0).getQuantity();i++ ) {
-			Vehicle v= new Vehicle();
+			Vehicle v= new Vehicle(i);
 			vehicleList.add(v);
 		}
 
-		
 		ArrayList<Jobs> assigned= new ArrayList<Jobs> ();
 		for(int i=0;i<vehicleList.size();i++) {// if insterted node is + then should find the negative
-
-			for(MedicalStaff s:copyfrom_completeStaff) {
+			for(MedicalStaff s:copyfrom_completeStaff) { // all vehicle are
 				Vehicle v=vehicleList.get(i);
-				for(Jobs j:s.getAvailability()) {
-					if(v.getJobs().isEmpty()) {
-						insertingFirstJobs(j,v,s,assigned,inputs);
-					}
-					else {
-						boolean inserted=insertJob(j,v,s,assigned,inputs);
-						do {
-							if(!inserted && i++<vehicleList.size()) {
-								i++;
-							}
-							else {i=0;}
-						}while(inserted==false);
+				Jobs jobsToInsert=s.getAvailability().get(0);
+				if(v.getJobs().isEmpty()) {
+					insertingFirstJobs(jobsToInsert,v,s,assigned,inputs);
+				}
+			}
+			System.out.print(vehicleList.get(i).toString());
+		}
+		insertingOtherJobs_hardTW(vehicleList,assigned,inputs,currentTest); // all drop-off at medical center and drop off nurse
+		insertingOtherJobs_softTW(vehicleList,assigned,inputs,currentTest);
 
+		
+		
+		for(MedicalStaff s:copyfrom_completeStaff) {  // validation
+			for(Jobs j:s.getAvailability()) { // jobs
+				if(!assigned.contains(j)) {
+					System.out.print("stop");	
+				}
+			}
+		}
+		System.out.print("Done");
+	}
+
+
+
+	private void insertingOtherJobs_softTW(ArrayList<Vehicle> vehicleList, ArrayList<Jobs> assigned, Inputs inputs,
+			Test currentTest) {
+		for(MedicalStaff s:copyfrom_completeStaff) { // all vehicle are
+			HashMap<Integer,ArrayList<Double>> vehJob= new  HashMap<Integer,ArrayList<Double>> ();// First compute the best position for each vehicle
+			for(int j=0;j<s.getAvailability().size();j++) {
+				double[] insertionCostperVehicle= new double[vehicleList.size()];
+				if(!assigned.contains(s.getAvailability().get(j))  && !s.getAvailability().get(j).isPatient()) {
+					for(Vehicle v: vehicleList) {
+						ArrayList<Double> cost_position= new ArrayList<Double>(); // first vehicle, second position
+						double[] insertionCost=insertJob(s.getAvailability().get(j),v,s,inputs);
+						cost_position=selectCheapestVehPosition(insertionCost); // retorn the position
+						double insertionCost_in_position=storeCostInsertion(insertionCost); // retorn the cost
+						insertionCostperVehicle[v.getVehicleID()]=insertionCost_in_position;
+						cost_position.add(0, (double)v.getVehicleID());
+						cost_position.add(insertionCost_in_position);
+						vehJob.put(v.getVehicleID(), cost_position); // for each job the insertion cost is stored for each job
 					}
+					insertingJob(insertionCostperVehicle, vehJob,s.getAvailability().get(j),s,vehicleList, assigned, inputs,currentTest);
 				}
 			}
 		}
@@ -91,42 +118,194 @@ public class Algorithm {
 
 
 
-	private boolean insertJob(Jobs j, Vehicle v, MedicalStaff s, ArrayList<Jobs> assigned, Inputs inputs) {
-		boolean inserted=false;
-		double[] insertionCost= new double[v.getJobs().size()+1];
-		int bestPosition=-1;
-		double minCost=Double.MAX_VALUE;
-		if(!assigned.contains(j) && Math.abs(v.getCurrentLoad() + j.getTotalPeople()) < inputs.getVehicles().get(0).getMaxCapacity()) {
-			int i=0;// i indicates position
-			
-			for(i=0;i<=v.getJobs().size();i++) {
-				insertionCost[i]=computeInsertionCost(i,j,v,inputs);
-			}
-			for(i=0;i<=v.getJobs().size();i++) {
-				if(insertionCost[i]<minCost) {
-					bestPosition=i;
+	private boolean softTimeWindow(Jobs jobs) {
+		boolean softTW= false;
+		if((jobs.isClient() && jobs.getTotalPeople()>0) || (jobs.isMedicalCentre() && jobs.getTotalPeople()>0)) {
+			softTW= true;
+		}
+		return softTW;
+	}
+
+
+
+	private void insertingOtherJobs_hardTW(ArrayList<Vehicle> vehicleList, ArrayList<Jobs> assigned, Inputs inputs, Test currentTest) {
+		for(MedicalStaff s:copyfrom_completeStaff) { // all vehicle are
+			HashMap<Integer,ArrayList<Double>> vehJob= new  HashMap<Integer,ArrayList<Double>> ();// First compute the best position for each vehicle
+			for(int j=0;j<s.getAvailability().size();j++) {
+				double[] insertionCostperVehicle= new double[vehicleList.size()];
+				if(!assigned.contains(s.getAvailability().get(j)) & hardTimeWindow(s.getAvailability().get(j))) {
+					for(Vehicle v: vehicleList) {
+						ArrayList<Double> cost_position= new ArrayList<Double>(); // first vehicle, second position
+						double[] insertionCost=insertJob(s.getAvailability().get(j),v,s,inputs);
+						cost_position=selectCheapestVehPosition(insertionCost); // retorn the position
+						double insertionCost_in_position=storeCostInsertion(insertionCost); // retorn the cost
+						insertionCostperVehicle[v.getVehicleID()]=insertionCost_in_position;
+						cost_position.add(0, (double)v.getVehicleID());
+						cost_position.add(insertionCost_in_position);
+						vehJob.put(v.getVehicleID(), cost_position); // for each job the insertion cost is stored for each job
+					}
+					insertingJob(insertionCostperVehicle, vehJob,s.getAvailability().get(j),s,vehicleList, assigned, inputs,currentTest);
 				}
 			}
-			if(bestPosition<v.getJobs().size()) {
-				v.getJobs().add(bestPosition,j);	
+		}
+	}
+
+
+
+
+
+
+
+	private double storeCostInsertion(double[] insertionCost) {
+		double minCost=Double.MAX_VALUE;
+		for(int i=0;i<insertionCost.length;i++) {
+			if(insertionCost[i]<minCost) {
+				minCost=insertionCost[i];
+			}
+		}
+
+
+		return minCost;
+	}
+
+
+
+
+	private void insertingJob(double[] insertionCostperVehicle, HashMap<Integer, ArrayList<Double>> vehJob, Jobs jobs, MedicalStaff s,
+			ArrayList<Vehicle> vehicleList, ArrayList<Jobs> assigned, Inputs inputs, Test currentTest) {
+		int vehID=cheapestVeh(insertionCostperVehicle);// return veh ID
+
+		double bestPosition=-1;
+		ArrayList<Double> veh=vehJob.get(vehID);	// LIST OF VEHICLE FOT THE JOB
+
+		bestPosition=veh.get(1);	// best position
+		insertionJob(jobs,vehicleList.get(vehID),s,bestPosition,assigned,inputs);		// insertJob with the complement node
+
+		System.out.print(vehicleList.get(vehID).toString());		
+
+	}
+
+
+
+
+
+
+	private int cheapestVeh(double[] insertionCostperVehicle) {
+		double minCost=Double.MAX_VALUE;
+		int veh=-1;
+		for(int i=0;i<insertionCostperVehicle.length;i++) {
+			if(insertionCostperVehicle[i]<minCost) {
+				minCost=insertionCostperVehicle[i];
+				veh=i;
+			}
+		}
+		return veh;
+	}
+
+
+
+	private void insertionJob(Jobs jobs, Vehicle vehicle, MedicalStaff s, double bestPosition, ArrayList<Jobs> assigned, Inputs inputs) {
+		assigned.add(jobs);
+		vehicle.getJobs().add((int)bestPosition,jobs);
+		vehicle.setCurrentLoad(jobs);
+		if(jobs.isMedicalCentre()) { // add the complement
+			if(jobs.getTotalPeople()<0) {
+				for(Jobs jj:s.getAvailability()) {
+					if(relationship[jj.getIDrequest()][jobs.getIDrequest()]==true) {
+						assigned.add(jj);
+						vehicle.getJobs().add((int)bestPosition,jj);
+						vehicle.setCurrentLoad(jj);
+						break;
+					}
+				}
 			}
 			else {
-				v.getJobs().add(j);
-			}
-			assigned.add(j);
-		}
-		if(assigned.contains(j)) {
-			inserted=true;
-			if(j.getTotalPeople()>0) {
 				for(Jobs jj:s.getAvailability()) {
-					if(relationship[j.getIDrequest()][jj.getIDrequest()]==true) {
-						insertionCost[bestPosition+1]=computeInsertionCost(bestPosition+1,j,v,inputs);
+					if(relationship[jobs.getIDrequest()][jj.getIDrequest()]==true) {
+						assigned.add(jj);
+						vehicle.getJobs().add((int)bestPosition+1,jj);
+						vehicle.setCurrentLoad(jj);
 						break;
 					}
 				}
 			}
 		}
-		return inserted;
+		if(jobs.isClient()) {
+			if(jobs.getTotalPeople()<0) {
+				for(Jobs jj:s.getAvailability()) {
+					if(relationship[jobs.getIDrequest()][jj.getIDrequest()]==true) {
+						assigned.add(jj);
+						vehicle.getJobs().add((int)bestPosition+1,jj);
+						vehicle.setCurrentLoad(jj);
+						break;
+					}
+				}
+			}		
+		}
+	}
+
+
+	//cheapestVehicle= selectionBestVehicle(insertionCostperVehicle);
+	private int selectionBestVehicle(double[] insertionCostperVehicle) {
+		int cheapestVeh=0;
+		double minCost=Double.MAX_VALUE;
+		double bestPosition=-1;
+
+		for(int i=0;i<insertionCostperVehicle.length;i++) {
+			if(insertionCostperVehicle[i]<minCost) {
+				cheapestVeh=i;
+			}
+		}
+		return cheapestVeh;
+	}
+
+
+
+	private ArrayList<Double> selectCheapestVehPosition(double[] insertionCost) {
+		ArrayList<Double> inf= new ArrayList<Double>(); // first vehicle, second position
+		double minCost=Double.MAX_VALUE;
+		double bestPosition=-1;
+
+		for(int i=0;i<insertionCost.length;i++) {
+			if(insertionCost[i]<minCost) {
+				minCost=insertionCost[i];
+				bestPosition=i;
+			}
+		}
+		inf.add(bestPosition);
+
+		return inf;
+	}
+
+
+
+	private boolean hardTimeWindow(Jobs jobs) {
+		boolean hardTW= false;
+		if((jobs.isClient() && jobs.getTotalPeople()<0) || (jobs.isMedicalCentre() && jobs.getTotalPeople()<0)) {
+			hardTW= true;
+		}
+		return hardTW;
+	}
+
+
+
+	private double[] insertJob(Jobs j, Vehicle v, MedicalStaff s, Inputs inputs) {
+		double[] insertionCost= new double[v.getJobs().size()+1];
+
+		if(v.hasCapacity()) {
+			int i=0;// i indicates position
+
+			for(i=0;i<=v.getJobs().size();i++) {
+				insertionCost[i]=computeInsertionCost(i,j,v,inputs);
+			}
+
+		}
+		else {
+			for(int i=0;i<=v.getJobs().size()+1;i++) {
+				insertionCost[i]=Double.MAX_VALUE;
+			}
+		}
+		return insertionCost;
 	}
 
 
@@ -157,7 +336,7 @@ public class Algorithm {
 						endTime[position]=j.getEndTime();
 					}
 					else {
-						tv=inputs.getCarCost().getCost(lastJob, j.getId());
+						tv=inputs.getCarCost().getCost(lastJob-1, j.getId()-1);
 						arrivalTime[position+1]=arrivalTime[position]+tv;
 						startTime[position+1]=j.getStartTime();
 						endTime[position+1]=j.getEndTime();
@@ -191,7 +370,7 @@ public class Algorithm {
 			}
 
 		}
-		if(position==i) {
+		if(position==i && i>0) {
 			tv=inputs.getCarCost().getCost(lastJob-1, j.getId()-1);
 			arrivalTime[position]=arrivalTime[position-1]+tv;
 			startTime[position]=j.getStartTime();
@@ -218,26 +397,23 @@ public class Algorithm {
 
 
 	private void insertingFirstJobs(Jobs j, Vehicle v, MedicalStaff s, ArrayList<Jobs> assigned, Inputs inputs) {
-
 		if(!assigned.contains(j)) {
 			v.getJobs().add(j);
-			v.setCapacity(j.getTotalPeople());
+			v.setCurrentLoad(j);
 			j.setarrivalTime(j.getStartTime());
 
 			assigned.add(j);
-			if(j.getTotalPeople()>0) {
-				for(Jobs jj:s.getAvailability()) {
-					if(relationship[j.getIDrequest()][jj.getIDrequest()]==true) {
-						v.getJobs().add(jj);
-						v.setCapacity(jj.getTotalPeople());
-						assigned.add(jj);
-						break;
-					}
+			//if(j.getTotalPeople()>0) {
+			for(Jobs jj:s.getAvailability()) {
+				if(relationship[j.getIDrequest()][jj.getIDrequest()]==true) {
+					v.getJobs().add(jj);
+					v.setCurrentLoad(jj);
+					assigned.add(jj);
+					break;
 				}
 			}
+			//}
 		}
-
-
 	}
 
 
@@ -259,7 +435,6 @@ public class Algorithm {
 				pickUPNursesList.add(client);
 				client.setTotalPeople(1,0);
 
-
 				allRequestsList.add(j);// adding as a list of request
 				allRequestsList.add(client); // adding as a list of request
 			}
@@ -271,8 +446,6 @@ public class Algorithm {
 				Jobs pair=new Jobs(j.getsubJobPair()); // drop off at medical centre
 				pair.setTotalPeople(-1,j.getId());
 				pair.setMedicalCentre(true);
-
-
 
 				Jobs pickUp=new Jobs(pair);  // pick up at medical centre
 				pickUp.setMedicalCentre(true);
@@ -301,6 +474,7 @@ public class Algorithm {
 			jobsList.put(i, allRequestsList.get(i));
 		}
 
+		assigmentMedicalStaff= new int[allRequestsList.size()];
 		relationship= new boolean[allRequestsList.size()][allRequestsList.size()];
 
 	}
@@ -341,6 +515,10 @@ public class Algorithm {
 
 		for (MedicalStaff ms : completeStaff.values()) {
 			copyfrom_completeStaff.add(ms);
+			for(Jobs j:ms.getAvailability()) {
+				assigmentMedicalStaff[j.getIDrequest()]=ms.getId();
+				j.setPersonnel(ms.getId());
+			}
 			System.out.println(ms.toString());
 		}
 
