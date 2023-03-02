@@ -54,8 +54,9 @@ public class Algorithm {
 		improveAssigmentPersonalToPatients(currentTest,inputs);
 		routing(currentTest,inputs,rng);
 		GAMSSOLVER.definingArrivalsTime(vehicleList, ws,currentTest,inputs,rng,relationship);
-		initialSolution.setSchedulingandRouting(completeStaff,vehicleList);
+		initialSolution.setSchedulingandRouting(vehicleList);
 	
+		System.out.print(initialSolution.toString());
 	}
 
 
