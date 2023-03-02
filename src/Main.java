@@ -2,6 +2,9 @@ import java.io.File;
 import java.util.List;
 import java.util.Random;
 
+import com.gams.api.GAMSWorkspace;
+import com.gams.api.GAMSWorkspaceInfo;
+
 
 public class Main {
 	final static String inputFolder = "inputs";
@@ -21,6 +24,21 @@ public class Main {
 		for(Test currentTest: testsList)
 		{   
 
+			
+			//******************************************************
+			
+			  GAMSWorkspaceInfo  wsInfo  = new GAMSWorkspaceInfo();
+		         if (args.length > 0)
+		             wsInfo.setSystemDirectory( args[0] );
+		         // create a directory
+		         File workingDirectory = new File(System.getProperty("user.dir"), "hhc");
+		         workingDirectory.mkdir();
+		         wsInfo.setWorkingDirectory(workingDirectory.getAbsolutePath());
+		         // create a workspace
+		         GAMSWorkspace ws = new GAMSWorkspace(wsInfo);
+			
+			
+		     //******************************************************
 			Random rng = new Random(currentTest.getSeed()); // Random number generator
 			System.out.println("\nSTARTING TEST " + (++counter) + " OF " + testsList.size());
 
@@ -46,7 +64,7 @@ public class Main {
 					currentTest.getInstanceName() + "_" + currentTest.getSeed() +"_"+objective+"_between"+currentTest.getWalking2jobs()+"_cum"+currentTest.getCumulativeWalkingTime()+  sufixFileOutput;
 			// 2.2. USE THE MULTI-START ALGORITHM TO SOLVE THE INSTANCE
 			//Algorithm algorithm = new Algorithm(currentTest, inputs, rng);
-			Algorithm algorithm = new Algorithm(currentTest, inputs, rng);
+			Algorithm algorithm = new Algorithm(currentTest, inputs, rng,ws);
 			Outputs output = new Outputs(currentTest,algorithm);
 			Double endTime=(System.nanoTime() - t) / Math.pow(10, 6);
 			output.sendToFile(outputsFilePath,endTime);

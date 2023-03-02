@@ -36,30 +36,35 @@ public class Algorithm {
 	private ArrayList<MedicalStaff> nursesQ3;
 	private ArrayList<MedicalStaff> medicalStaff;
 	int[] assigmentMedicalStaff;
+	private ArrayList<Vehicle> vehicleList;
+	private Solution initialSolution;
 
 
-
-	public Algorithm(Test currentTest, Inputs inputs, Random rng) {
-
+	public Algorithm(Test currentTest, Inputs inputs, Random rng, GAMSWorkspace ws) {
+		initialSolution= new Solution();
 		dataPreparation(currentTest,inputs,rng);
-		initialSolution(currentTest,inputs,rng);
+		initialSolution(currentTest,inputs,rng,ws);
 
 	}
 
 
 
-	private void initialSolution(Test currentTest, Inputs inputs, Random rng) {
+	private void initialSolution(Test currentTest, Inputs inputs, Random rng, GAMSWorkspace ws) {
 		dummyAssigmentPersonalToPatients(inputs);
 		improveAssigmentPersonalToPatients(currentTest,inputs);
 		routing(currentTest,inputs,rng);
+		GAMSSOLVER.definingArrivalsTime(vehicleList, ws,currentTest,inputs,rng,relationship);
+		initialSolution.setSchedulingandRouting(completeStaff,vehicleList);
+	
 	}
+
 
 
 
 	private void routing(Test currentTest, Inputs inputs, Random rng) {
 
 		// under the assumption that one vehicle can have more than one route
-		ArrayList<Vehicle> vehicleList= new ArrayList<Vehicle> ();
+		vehicleList= new ArrayList<Vehicle> ();
 		for(int i=0;i<inputs.getVehicles().get(0).getQuantity();i++ ) {
 			Vehicle v= new Vehicle(i);
 			vehicleList.add(v);
